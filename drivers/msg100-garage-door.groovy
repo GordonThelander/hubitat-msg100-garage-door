@@ -1,7 +1,7 @@
 /*
  * MSG100 Garage Door
  * Namespace: Hubitat Integrations
- * Version: 1.0.0
+ * Version: 2.0.0
  * Parent app: MSG100 Garage Door Setup
  *
  * Controls a Meross MSG100 WiFi garage door opener directly over the LAN.
