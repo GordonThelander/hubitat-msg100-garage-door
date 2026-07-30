@@ -1,12 +1,20 @@
 /*
  * MSG100 Garage Door
  * Namespace: Hubitat Integrations
- * Version: 1.0.0
+ * Version: 1.1.0
  * Parent app: MSG100 Garage Door Setup
  *
  * Controls a Meross MSG100 WiFi garage door opener directly over the LAN.
  * Single-channel device: channel 0 is the only door, so there is no
  * channel selector and no channel-index handling anywhere in this file.
+ *
+ * Uses asynchttpPost for LAN requests rather than HubAction/sendHubCommand
+ * + parse(). The latter only routes an inbound response to a device's
+ * parse() method when the Device Network ID is the hex-encoded IP of the
+ * device; this integration's DNI is keyed off the Meross device UUID
+ * instead, so that routing never fires. asynchttpPost correlates
+ * request/response through its own callback mechanism and doesn't care
+ * about DNI format.
  */
 
 import groovy.json.JsonSlurper
@@ -86,20 +94,8 @@ def refresh() {
         warnMissingConfig()
         return
     }
-
     try {
-        def sign = buildSign()
-        state.lastMessageId = sign.messageId
-
-        def hubAction = new hubitat.device.HubAction([
-            method : 'POST',
-            path   : '/config',
-            headers: ['HOST': deviceIp, 'Content-Type': 'application/json'],
-            body   : buildRequestBody('Appliance.System.All', 'GET', sign, [:], '/subscribe')
-        ])
-        sendHubCommand(hubAction)
-        sendEvent(name: 'lastRefresh', value: nowString(), isStateChange: true)
-        runIn(10, 'checkCommTimeout', [overwrite: true, data: [messageId: sign.messageId]])
+        sendMerossRequest('Appliance.System.All', 'GET', [:], 'refreshCallback', [:])
     } catch (Exception e) {
         log.error("refresh() failed: ${e}")
     }
@@ -114,17 +110,8 @@ private void sendCommand(boolean openRequested) {
     sendEvent(name: 'door', value: openRequested ? 'opening' : 'closing', isStateChange: true)
 
     try {
-        def sign = buildSign()
-        state.lastMessageId = sign.messageId
-
         def payload = [state: [open: openRequested ? 1 : 0, channel: 0, uuid: uuid]]
-        def hubAction = new hubitat.device.HubAction([
-            method : 'POST',
-            path   : '/config',
-            headers: ['HOST': deviceIp, 'Content-Type': 'application/json'],
-            body   : buildRequestBody('Appliance.GarageDoor.State', 'SET', sign, payload, '/config')
-        ])
-        sendHubCommand(hubAction)
+        sendMerossRequest('Appliance.GarageDoor.State', 'SET', payload, 'commandCallback', [open: openRequested])
 
         Integer verifyDelay = (openRequested ? openVerifyDelaySeconds : closeVerifyDelaySeconds) as Integer
         if (verifyDelay != null && verifyDelay > 0) {
@@ -135,37 +122,45 @@ private void sendCommand(boolean openRequested) {
     }
 }
 
-def checkCommTimeout(data) {
-    if (state.lastResponseMessageId != data?.messageId) {
-        sendEvent(name: 'commStatus', value: 'offline', isStateChange: true)
-        log.warn('No response received from garage door within 10 seconds')
-    }
+private void sendMerossRequest(String namespace, String method, Map payload, String callback, Map callbackData) {
+    def sign = buildSign()
+    def body = [
+        payload: payload,
+        header : [
+            messageId     : sign.messageId,
+            method        : method,
+            from          : "http://${deviceIp}/config",
+            namespace     : namespace,
+            triggerSrc    : 'hubitat',
+            timestamp     : sign.timestamp,
+            sign          : sign.sign,
+            payloadVersion: 1,
+            uuid          : uuid
+        ]
+    ]
+    def params = [
+        uri        : "http://${deviceIp}",
+        path       : '/config',
+        contentType: 'application/json',
+        body       : body,
+        headers    : [Connection: 'keep-alive']
+    ]
+    asynchttpPost(callback, params, callbackData)
 }
 
-def parse(String description) {
+def refreshCallback(resp, data) {
+    if (resp?.hasError()) {
+        sendEvent(name: 'commStatus', value: 'offline', isStateChange: true)
+        log.warn("Garage door did not respond to status refresh: ${resp.getErrorMessage()}")
+        return
+    }
+    if (!resp?.data?.trim()) {
+        logDebug('refreshCallback() received an empty response body, ignoring')
+        return
+    }
+
     try {
-        def msg = parseLanMessage(description)
-        if (!msg.body) {
-            logDebug('parse() received a message with no body, ignoring')
-            return
-        }
-        if (msg.status != null && msg.status != 200) {
-            log.error("Garage door returned HTTP status ${msg.status}")
-            sendEvent(name: 'commStatus', value: 'offline', isStateChange: true)
-            return
-        }
-
-        def body = new JsonSlurper().parseText(msg.body)
-        if (body?.header?.method == 'SETACK') {
-            return
-        }
-
-        if (body?.header?.messageId && body.header.messageId != state.lastMessageId) {
-            logDebug("Ignoring response with unexpected messageId ${body.header.messageId}")
-            return
-        }
-        state.lastResponseMessageId = body?.header?.messageId
-
+        def body = new JsonSlurper().parseText(resp.data)
         def all = body?.payload?.all
         if (!all) {
             log.error('Garage door status response missing payload.all')
@@ -182,10 +177,21 @@ def parse(String description) {
         sendEvent(name: 'model', value: all.system?.hardware?.type, isStateChange: false)
         sendEvent(name: 'firmware', value: all.system?.firmware?.version, isStateChange: false)
         sendEvent(name: 'commStatus', value: 'online', isStateChange: true)
+        sendEvent(name: 'lastRefresh', value: nowString(), isStateChange: true)
     } catch (Exception e) {
-        log.error("parse() failed: ${e}")
+        log.error("refreshCallback() failed to parse response: ${e}")
         sendEvent(name: 'commStatus', value: 'offline', isStateChange: true)
     }
+}
+
+def commandCallback(resp, data) {
+    String which = data?.open ? 'open' : 'close'
+    if (resp?.hasError()) {
+        sendEvent(name: 'commStatus', value: 'offline', isStateChange: true)
+        log.warn("Garage door did not acknowledge the ${which} command: ${resp.getErrorMessage()}")
+        return
+    }
+    logDebug("Garage door acknowledged the ${which} command")
 }
 
 private void schedulePolling() {
@@ -264,21 +270,6 @@ private String md5Hex(String value) {
     MessageDigest digest = MessageDigest.getInstance('MD5')
     digest.update(value.bytes)
     return new BigInteger(1, digest.digest()).toString(16).padLeft(32, '0')
-}
-
-private String buildRequestBody(String namespace, String method, Map sign, Map payload, String fromPath) {
-    def header = [
-        messageId    : sign.messageId,
-        method       : method,
-        from         : "http://${deviceIp}${fromPath}",
-        namespace    : namespace,
-        triggerSrc   : 'Hubitat',
-        timestamp    : sign.timestamp,
-        sign         : sign.sign,
-        payloadVersion: 1,
-        uuid         : uuid
-    ]
-    return groovy.json.JsonOutput.toJson([header: header, payload: payload])
 }
 
 private String nowString() {
