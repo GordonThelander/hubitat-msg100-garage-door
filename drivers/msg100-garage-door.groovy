@@ -95,7 +95,7 @@ def refresh() {
             method : 'POST',
             path   : '/config',
             headers: ['HOST': deviceIp, 'Content-Type': 'application/json'],
-            body   : buildRequestBody('Appliance.System.All', 'GET', sign, [:])
+            body   : buildRequestBody('Appliance.System.All', 'GET', sign, [:], '/subscribe')
         ])
         sendHubCommand(hubAction)
         sendEvent(name: 'lastRefresh', value: nowString(), isStateChange: true)
@@ -122,7 +122,7 @@ private void sendCommand(boolean openRequested) {
             method : 'POST',
             path   : '/config',
             headers: ['HOST': deviceIp, 'Content-Type': 'application/json'],
-            body   : buildRequestBody('Appliance.GarageDoor.State', 'SET', sign, payload)
+            body   : buildRequestBody('Appliance.GarageDoor.State', 'SET', sign, payload, '/config')
         ])
         sendHubCommand(hubAction)
 
@@ -266,11 +266,11 @@ private String md5Hex(String value) {
     return new BigInteger(1, digest.digest()).toString(16).padLeft(32, '0')
 }
 
-private String buildRequestBody(String namespace, String method, Map sign, Map payload) {
+private String buildRequestBody(String namespace, String method, Map sign, Map payload, String fromPath) {
     def header = [
         messageId    : sign.messageId,
         method       : method,
-        from         : "http://${deviceIp}/config",
+        from         : "http://${deviceIp}${fromPath}",
         namespace    : namespace,
         triggerSrc   : 'Hubitat',
         timestamp    : sign.timestamp,
