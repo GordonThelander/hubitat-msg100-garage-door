@@ -1,8 +1,8 @@
 # Hubitat MSG100 Garage Door
 
-A from-scratch Hubitat integration for the Meross MSG100 WiFi Garage Door Opener. Only the MSG100 is supported - no other Meross device types.
+Control a Meross MSG100 WiFi Garage Door Opener from Hubitat - open, close, and monitor its status entirely over your local network. Setup finds the device automatically (network scan or manual IP entry), and once it's configured, control never touches the cloud again.
 
-This package talks to the MSG100 directly over the LAN using Meross's own local device API, the same reverse-engineered protocol every open-source Meross integration has to implement, since it's dictated by the device firmware, not by any particular project.
+Built specifically for the MSG100 - no other Meross device types are supported. It talks to the device directly over the LAN using Meross's own local device API, the same protocol every open-source Meross integration has to implement, since it comes from the device firmware itself, not from any particular project.
 
 ## What's included
 
