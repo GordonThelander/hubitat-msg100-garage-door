@@ -1,7 +1,7 @@
 /*
  * MSG100 Garage Door Setup
  * Namespace: Hubitat Integrations
- * Version: 2.0.0
+ * Version: 2.1.0
  *
  * Logs into a Meross account once, finds MSG100 garage door openers on
  * that account (and only MSG100s - anything else Meross returns is
@@ -256,7 +256,7 @@ private Map loginMeross(String email, String password, String apiBase) {
 
     try {
         httpPost([uri: "${apiBase}/v1/Auth/signIn", contentType: 'application/x-www-form-urlencoded', body: body]) { resp ->
-            logDebug("Meross signIn raw response: ${resp.data}")
+            logDebug("Meross signIn raw response: ${redactSecrets(resp.data)}")
             if (resp.status != 200) {
                 result = [success: false, error: "HTTP error ${resp.status} logging into Meross."]
                 return
@@ -298,7 +298,7 @@ private Map fetchDeviceList(String token, String apiBase) {
             headers: ['Authorization': "Basic ${token}"],
             body   : [params: emptyParams, sign: signature, timestamp: sign.timestamp, nonce: sign.nonce]
         ]) { resp ->
-            logDebug("Meross devList raw response: ${resp.data}")
+            logDebug("Meross devList raw response: ${redactSecrets(resp.data)}")
             if (resp.status != 200) {
                 result = [success: false, error: "HTTP error ${resp.status} fetching device list."]
                 return
@@ -365,6 +365,16 @@ private String extractFieldFromRaw(raw, String fieldName) {
     def pattern = java.util.regex.Pattern.compile('"' + fieldName + '"\\s*:\\s*"([^"\\\\]*(?:\\\\.[^"\\\\]*)*)"')
     def matcher = pattern.matcher(text)
     return matcher.find() ? matcher.group(1) : ''
+}
+
+// Debug logs print the raw Meross response for troubleshooting, but that
+// response can contain the account token/key - mask those specific fields
+// before logging rather than skipping the log entirely.
+private String redactSecrets(raw) {
+    String text = raw?.toString() ?: ''
+    text = text.replaceAll(/"token"\s*:\s*"[^"]*"/, '"token":"[redacted]"')
+    text = text.replaceAll(/"key"\s*:\s*"[^"]*"/, '"key":"[redacted]"')
+    return text
 }
 
 private Map buildSign() {

@@ -1,10 +1,10 @@
 {
   "packageName": "MSG100 Garage Door",
   "author": "Gordon Thelander",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "minimumHEVersion": "1.0.0",
   "dateReleased": "2026-07-30",
-  "releaseNotes": "Adds and controls a Meross MSG100 WiFi Garage Door Opener as a Hubitat device: open/close, live door and contact status, and configurable polling. Setup logs into your Meross account once to retrieve the device's local control key, then finds the device on your LAN automatically (network scan) or lets you enter its IP manually. Once set up, control runs entirely over your local network - no ongoing cloud dependency.",
+  "releaseNotes": "Fixes command acknowledgement not being validated (a device-side error could previously be silently treated as success), the door state not resetting to unknown after a failed command, and debug logging exposing the account key/token in raw Meross responses.",
   "apps": [
     {
       "id": "462372bd-8ea6-4632-9217-f19305c4ae87",
@@ -14,7 +14,7 @@
       "required": true,
       "oauth": false,
       "primary": true,
-      "version": "2.0.0"
+      "version": "2.1.0"
     }
   ],
   "drivers": [
@@ -24,7 +24,7 @@
       "namespace": "Hubitat Integrations",
       "location": "https://raw.githubusercontent.com/GordonThelander/hubitat-msg100-garage-door/main/drivers/msg100-garage-door.groovy",
       "required": true,
-      "version": "2.0.0"
+      "version": "2.1.0"
     }
   ]
 }

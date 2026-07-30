@@ -1,7 +1,7 @@
 /*
  * MSG100 Garage Door
  * Namespace: Hubitat Integrations
- * Version: 2.0.0
+ * Version: 2.1.0
  * Parent app: MSG100 Garage Door Setup
  *
  * Controls a Meross MSG100 WiFi garage door opener directly over the LAN.
@@ -186,12 +186,40 @@ def refreshCallback(resp, data) {
 
 def commandCallback(resp, data) {
     String which = data?.open ? 'open' : 'close'
+
     if (resp?.hasError()) {
-        sendEvent(name: 'commStatus', value: 'offline', isStateChange: true)
-        log.warn("Garage door did not acknowledge the ${which} command: ${resp.getErrorMessage()}")
+        failCommand(which, "transport error: ${resp.getErrorMessage()}")
         return
     }
+
+    String body = resp?.data?.toString()
+    if (!body?.trim()) {
+        failCommand(which, 'empty response body')
+        return
+    }
+
+    Map parsed
+    try {
+        parsed = new JsonSlurper().parseText(body) as Map
+    } catch (Exception e) {
+        failCommand(which, "unparseable response: ${e}")
+        return
+    }
+
+    if (parsed?.header?.method == 'ERROR') {
+        def error = parsed?.payload?.error
+        failCommand(which, "device rejected the command (code=${error?.code}): ${error?.detail ?: 'no detail'}")
+        return
+    }
+
+    sendEvent(name: 'commStatus', value: 'online', isStateChange: true)
     logDebug("Garage door acknowledged the ${which} command")
+}
+
+private void failCommand(String which, String reason) {
+    sendEvent(name: 'commStatus', value: 'offline', isStateChange: true)
+    sendEvent(name: 'door', value: 'unknown', isStateChange: true)
+    log.warn("Garage door did not acknowledge the ${which} command - ${reason}")
 }
 
 private void schedulePolling() {
