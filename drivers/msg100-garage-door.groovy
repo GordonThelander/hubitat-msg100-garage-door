@@ -46,9 +46,6 @@ metadata {
     }
 }
 
-private static final String SIGN_NAMESPACE_STATE = 'Appliance.GarageDoor.State'
-private static final String SIGN_NAMESPACE_ALL = 'Appliance.System.All'
-
 def installed() {
     log.info('Installed')
     initialize()
@@ -98,7 +95,7 @@ def refresh() {
             method : 'POST',
             path   : '/config',
             headers: ['HOST': deviceIp, 'Content-Type': 'application/json'],
-            body   : buildRequestBody(SIGN_NAMESPACE_ALL, 'GET', sign, [:])
+            body   : buildRequestBody('Appliance.System.All', 'GET', sign, [:])
         ])
         sendHubCommand(hubAction)
         sendEvent(name: 'lastRefresh', value: nowString(), isStateChange: true)
@@ -125,7 +122,7 @@ private void sendCommand(boolean openRequested) {
             method : 'POST',
             path   : '/config',
             headers: ['HOST': deviceIp, 'Content-Type': 'application/json'],
-            body   : buildRequestBody(SIGN_NAMESPACE_STATE, 'SET', sign, payload)
+            body   : buildRequestBody('Appliance.GarageDoor.State', 'SET', sign, payload)
         ])
         sendHubCommand(hubAction)
 
@@ -235,11 +232,11 @@ private void warnMissingConfig() {
     log.warn("Missing configuration - deviceIp=${settingPresent(deviceIp)}, uuid=${settingPresent(uuid)}, key=${settingPresent(key)}")
 }
 
-private static boolean settingPresent(value) {
+private boolean settingPresent(value) {
     return value != null && value.toString().trim().length() > 0
 }
 
-private static Integer parseIntOrDefault(value, Integer defaultValue) {
+private Integer parseIntOrDefault(value, Integer defaultValue) {
     try {
         return value == null ? defaultValue : value.toString().toInteger()
     } catch (Exception ignored) {
@@ -259,7 +256,7 @@ private Map buildSign() {
     return [messageId: messageId, sign: sign, timestamp: currentTime]
 }
 
-private static String md5Hex(String value) {
+private String md5Hex(String value) {
     MessageDigest digest = MessageDigest.getInstance('MD5')
     digest.update(value.bytes)
     return new BigInteger(1, digest.digest()).toString(16).padLeft(32, '0')

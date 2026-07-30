@@ -14,13 +14,9 @@ import groovy.json.JsonSlurper
 import java.net.URLEncoder
 import java.security.MessageDigest
 
-private static final String MEROSS_APP_SECRET = '23x17ahWarFH6w29'
-private static final String CHILD_NAMESPACE = 'Hubitat Integrations'
-private static final String CHILD_DRIVER_NAME = 'MSG100 Garage Door'
-
 definition(
     name: 'MSG100 Garage Door Setup',
-    namespace: CHILD_NAMESPACE,
+    namespace: 'Hubitat Integrations',
     author: 'Gordon Thelander',
     description: 'Finds and adds Meross MSG100 garage door openers as Hubitat devices.',
     category: 'Bluetooth',
@@ -124,7 +120,7 @@ def addDeviceStep3() {
         message = "A device for '${device?.devName ?: selectedDevice}' already exists."
     } else {
         try {
-            def child = addChildDevice(CHILD_NAMESPACE, CHILD_DRIVER_NAME, dni, [label: device?.devName ?: 'MSG100 Garage Door'])
+            def child = addChildDevice('Hubitat Integrations', 'MSG100 Garage Door', dni, [label: device?.devName ?: 'MSG100 Garage Door'])
             child.updateSetting('deviceIp', deviceIp)
             child.updateSetting('uuid', selectedDevice)
             child.updateSetting('key', state.merossKey)
@@ -162,7 +158,7 @@ def uninstalled() {
 private Map loginMeross(String email, String password, String apiBase) {
     def sign = buildSign()
     def params = JsonOutput.toJson([email: email, password: password]).bytes.encodeBase64().toString()
-    def signature = md5Hex(MEROSS_APP_SECRET + sign.timestamp + sign.nonce + params)
+    def signature = md5Hex('23x17ahWarFH6w29' + sign.timestamp + sign.nonce + params)
 
     def body = "params=${urlEncode(params)}&sign=${signature}&timestamp=${sign.timestamp}&nonce=${sign.nonce}"
     def result = [success: false, error: 'Unknown login error']
@@ -194,7 +190,7 @@ private Map loginMeross(String email, String password, String apiBase) {
 private Map fetchDeviceList(String token, String apiBase) {
     def sign = buildSign()
     def emptyParams = JsonOutput.toJson([:]).bytes.encodeBase64().toString()
-    def signature = md5Hex(MEROSS_APP_SECRET + sign.timestamp + sign.nonce + emptyParams)
+    def signature = md5Hex('23x17ahWarFH6w29' + sign.timestamp + sign.nonce + emptyParams)
 
     def result = [success: false, error: 'Unknown device lookup error']
     try {
@@ -243,13 +239,13 @@ private Map buildSign() {
     return [nonce: nonce, timestamp: timestamp]
 }
 
-private static String md5Hex(String value) {
+private String md5Hex(String value) {
     MessageDigest digest = MessageDigest.getInstance('MD5')
     digest.update(value.bytes)
     return new BigInteger(1, digest.digest()).toString(16).padLeft(32, '0')
 }
 
-private static String urlEncode(String value) {
+private String urlEncode(String value) {
     return URLEncoder.encode(value, 'UTF-8')
 }
 
