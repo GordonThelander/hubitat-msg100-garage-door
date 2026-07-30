@@ -165,13 +165,14 @@ private Map loginMeross(String email, String password, String apiBase) {
 
     try {
         httpPost([uri: "${apiBase}/v1/Auth/signIn", contentType: 'application/x-www-form-urlencoded', body: body]) { resp ->
+            logDebug("Meross signIn raw response class=${resp.data?.getClass()} value=${resp.data}")
             if (resp.status != 200) {
                 result = [success: false, error: "HTTP error ${resp.status} logging into Meross."]
                 return
             }
             def parsed = asMap(resp.data)
             if (parsed?.apiStatus != 0) {
-                result = [success: false, error: "Meross login failed (apiStatus=${parsed?.apiStatus}): ${parsed?.info ?: 'no details returned'}"]
+                result = [success: false, error: "Meross login failed (apiStatus=${parsed?.apiStatus}): ${parsed?.info ?: 'no details returned'}. If apiStatus is blank, enable debug logging on this app and check Live Logs for the raw response."]
                 return
             }
             def data = parsed.data
@@ -199,13 +200,14 @@ private Map fetchDeviceList(String token, String apiBase) {
             headers: ['Authorization': "Basic ${token}"],
             body   : [params: emptyParams, sign: signature, timestamp: sign.timestamp, nonce: sign.nonce]
         ]) { resp ->
+            logDebug("Meross devList raw response class=${resp.data?.getClass()} value=${resp.data}")
             if (resp.status != 200) {
                 result = [success: false, error: "HTTP error ${resp.status} fetching device list."]
                 return
             }
             def parsed = asMap(resp.data)
             if (parsed?.apiStatus != 0) {
-                result = [success: false, error: "Meross device lookup failed (apiStatus=${parsed?.apiStatus}): ${parsed?.info ?: 'no details returned'}"]
+                result = [success: false, error: "Meross device lookup failed (apiStatus=${parsed?.apiStatus}): ${parsed?.info ?: 'no details returned'}. If apiStatus is blank, enable debug logging on this app and check Live Logs for the raw response."]
                 return
             }
             result = [success: true, devices: (parsed.data instanceof List ? parsed.data : [])]
@@ -217,8 +219,10 @@ private Map fetchDeviceList(String token, String apiBase) {
 }
 
 // Hubitat's httpPost/httpPostJson have been observed returning Meross's JSON
-// response either already parsed or as a raw string, depending on the
-// endpoint - normalise both shapes to a Map here.
+// response in more than one shape: already parsed, as a raw string, as a
+// List wrapping a single Map, or as a Map whose one key is the actual JSON
+// (string or nested Map) with a null value. Normalise all of those to a
+// plain Map here.
 private Map asMap(raw) {
     def parsed = raw
     if (parsed instanceof String) {
@@ -228,6 +232,27 @@ private Map asMap(raw) {
             return [:]
         }
     }
+
+    if (parsed instanceof List) {
+        parsed = parsed.find { it instanceof Map } ?: [:]
+    }
+
+    if (parsed instanceof Map && !parsed.containsKey('apiStatus') && parsed.size() == 1) {
+        def onlyKey = parsed.keySet().iterator().next()
+        if (onlyKey instanceof Map) {
+            parsed = onlyKey
+        } else if (onlyKey instanceof String) {
+            try {
+                def reparsed = new JsonSlurper().parseText(onlyKey)
+                if (reparsed instanceof Map) {
+                    parsed = reparsed
+                }
+            } catch (Exception ignored) {
+                // Leave parsed as-is - not the map-as-key shape after all.
+            }
+        }
+    }
+
     return (parsed instanceof Map) ? parsed : [:]
 }
 
