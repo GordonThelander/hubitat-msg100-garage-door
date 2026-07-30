@@ -145,6 +145,10 @@ def checkCommTimeout(data) {
 def parse(String description) {
     try {
         def msg = parseLanMessage(description)
+        if (!msg.body) {
+            logDebug('parse() received a message with no body, ignoring')
+            return
+        }
         if (msg.status != null && msg.status != 200) {
             log.error("Garage door returned HTTP status ${msg.status}")
             sendEvent(name: 'commStatus', value: 'offline', isStateChange: true)
