@@ -1,7 +1,7 @@
 /*
  * MSG100 Garage Door Setup
  * Namespace: Hubitat Integrations
- * Version: 1.3.0
+ * Version: 1.3.1
  *
  * Logs into a Meross account once, finds MSG100 garage door openers on
  * that account (and only MSG100s - anything else Meross returns is
@@ -409,7 +409,12 @@ void appButtonHandler(String buttonName) {
 }
 
 private void beginTargetedScan() {
-    String prefix = scanSubnetPrefix?.toString()?.trim()
+    // scanSubnetPrefix's defaultValue is only ever shown in the UI - it
+    // isn't committed as a real setting until one full page round-trip
+    // has happened, which hasn't occurred yet the first time this section
+    // appears (same render as toggling scanForIp on). Fall back to the
+    // same default in code so the very first click of Start Scan works.
+    String prefix = (scanSubnetPrefix?.toString()?.trim()) ?: defaultSubnetPrefix()
     Integer first = safeInteger(scanStartHost) ?: 1
     Integer last = safeInteger(scanEndHost) ?: 254
 
