@@ -19,9 +19,9 @@ This package talks to the MSG100 directly over the LAN using Meross's own local 
 
 1. **Add a Garage Door** in the app.
 2. Enter your Meross account email and password, and the API base URL for your account's region (defaults to `https://iotx-ap.meross.com`; try `https://iotx-us.meross.com` or `https://iotx-eu.meross.com` if login fails).
-3. Pick the MSG100 to add from the list Meross returns for your account.
+3. If your account has more than one MSG100, pick which one to add. If it only has one, it's selected automatically and you can name the Hubitat device right there (defaults to its name in the Meross app).
 4. Find the device's LAN IP address - Meross's cloud device list doesn't include it, so you have two options:
-   - **Scan my network for it** - probes your local subnet for a device that answers with the selected MSG100's UUID. This works without a valid key: even an intentionally-wrong signature gets a structured "sign error" response from a genuine Meross device, which is enough to identify it. Click **Refresh Status** a few seconds after starting the scan to see whether it found the device.
+   - **Scan my network for it** - probes your local subnet for a device that answers with the selected MSG100's UUID. This works without a valid key: even an intentionally-wrong signature gets a structured "sign error" response from a genuine Meross device, which is enough to identify it. The page updates automatically while waiting on results.
    - **Enter it manually** - type in the IP yourself (router DHCP client list, or the Meross app's WiFi details for the device).
 5. The app creates a child device, preconfigured with the device's IP, UUID, and account key.
 

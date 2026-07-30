@@ -1,7 +1,7 @@
 /*
  * MSG100 Garage Door Setup
  * Namespace: Hubitat Integrations
- * Version: 1.5.1
+ * Version: 1.0.0
  *
  * Logs into a Meross account once, finds MSG100 garage door openers on
  * that account (and only MSG100s - anything else Meross returns is
@@ -177,11 +177,6 @@ def addDeviceStep4() {
     }
 
     def dni = "msg100:${selectedDevice}"
-    // childDeviceLabel's defaultValue is only ever shown in the UI, not a
-    // real setting, until this page has been submitted at least once - it
-    // always has been by the time this step runs (it's on the initial
-    // render of step 3, not revealed later by a submitOnChange toggle),
-    // but fall back the same way regardless.
     String label = (childDeviceLabel?.toString()?.trim()) ?: defaultChildDeviceLabel()
     def message
 
@@ -406,15 +401,10 @@ private void logDebug(String msg) {
  * this is enough to identify the specific device already selected from
  * the Meross account's device list without needing the key yet.
  *
- * All probes are dispatched together rather than paced one at a time via
- * a self-rescheduling runIn/runInMillis chain: that chain does not appear
- * to reliably continue running when scheduled from this app's mid-wizard
- * page context - the first scheduled call never fired on a live hub, with
- * no error, just silence. asynchttpPost itself is fire-and-forget (this
- * loop only enqueues the requests; it doesn't wait for responses), so
- * dispatching all of them from a single button click is fast and doesn't
- * depend on the scheduler at all - only on asynchttpPost callbacks, which
- * are the same mechanism already proven reliable in the driver.
+ * All probes are dispatched together from a single button click rather
+ * than paced over time: asynchttpPost is fire-and-forget, so this loop
+ * only enqueues the requests and returns immediately, without depending
+ * on the job scheduler at all.
  */
 
 void appButtonHandler(String buttonName) {
@@ -429,11 +419,6 @@ void appButtonHandler(String buttonName) {
 }
 
 private void beginTargetedScan() {
-    // scanSubnetPrefix's defaultValue is only ever shown in the UI - it
-    // isn't committed as a real setting until one full page round-trip
-    // has happened, which hasn't occurred yet the first time this section
-    // appears (same render as toggling scanForIp on). Fall back to the
-    // same default in code so the very first click of Start Scan works.
     String prefix = (scanSubnetPrefix?.toString()?.trim()) ?: defaultSubnetPrefix()
     Integer first = safeInteger(scanStartHost) ?: 1
     Integer last = safeInteger(scanEndHost) ?: 254
@@ -533,14 +518,10 @@ private String scanStatusMessage() {
         long elapsedMs = now() - (state.scanDispatchedAt as long)
         long elapsedSeconds = elapsedMs / 1000L
 
-        // All probes are dispatched to Hubitat's async HTTP layer at once,
-        // but Hubitat still has to work through that whole batch
-        // internally - a short elapsed time is not reliable proof nothing
-        // will be found, so this deliberately doesn't claim "finished"
-        // with confidence it doesn't have. scanResponseHandler() has no
-        // time cutoff of its own, so a match can still be picked up later -
-        // this page auto-refreshes every 3 seconds while waiting, so no
-        // button click is needed to see it.
+        // A short elapsed time isn't proof nothing will be found - Hubitat
+        // needs time to work through the whole dispatched batch, and
+        // scanResponseHandler() has no time cutoff of its own, so a match
+        // can still arrive after this message stops saying "waiting."
         long stillLikelyMs = Math.max(15000L, probeCount * 200L)
         if (elapsedMs < stillLikelyMs) {
             return "Dispatched ${probeCount} probes ${elapsedSeconds}s ago - still waiting for responses."
@@ -601,10 +582,10 @@ private Map classifyMerossResponse(Map json) {
     return [isMeross: true, uuid: uuid]
 }
 
-// Finds the UUID by locating the "appliance" path segment and reading the
-// next one, rather than assuming a fixed token index - header.from's shape
-// is /appliance/<uuid>/publish, but Groovy's tokenize() drops the leading
-// empty token from the leading slash, so a fixed index is off by one.
+// header.from's shape is /appliance/<uuid>/publish. Groovy's tokenize()
+// drops the leading empty token from the leading slash, so this locates
+// the "appliance" segment and reads the next one rather than indexing by
+// a fixed position.
 private String extractUuidFromHeader(String from) {
     if (!from) {
         return null
