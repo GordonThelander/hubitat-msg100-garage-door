@@ -165,22 +165,29 @@ private Map loginMeross(String email, String password, String apiBase) {
 
     try {
         httpPost([uri: "${apiBase}/v1/Auth/signIn", contentType: 'application/x-www-form-urlencoded', body: body]) { resp ->
-            logDebug("Meross signIn raw response class=${resp.data?.getClass()} value=${resp.data}")
+            logDebug("Meross signIn raw response: ${resp.data}")
             if (resp.status != 200) {
                 result = [success: false, error: "HTTP error ${resp.status} logging into Meross."]
                 return
             }
+
             def parsed = asMap(resp.data)
-            if (parsed?.apiStatus != 0) {
-                result = [success: false, error: "Meross login failed (apiStatus=${parsed?.apiStatus}): ${parsed?.info ?: 'no details returned'}. If apiStatus is blank, enable debug logging on this app and check Live Logs for the raw response."]
+            if (parsed.containsKey('apiStatus') && parsed.apiStatus != 0) {
+                result = [success: false, error: "Meross login failed (apiStatus=${parsed.apiStatus}): ${parsed.info ?: 'no details returned'}"]
                 return
             }
-            def data = parsed.data
-            if (!data?.token || !data?.key) {
-                result = [success: false, error: "Meross login succeeded but response was missing a token/key."]
+
+            def data = (parsed.data instanceof Map) ? parsed.data : parsed
+            String token = (data?.token ?: '').toString()
+            String key = (data?.key ?: '').toString()
+            if (!token) token = extractFieldFromRaw(resp.data, 'token')
+            if (!key) key = extractFieldFromRaw(resp.data, 'key')
+
+            if (!token || !key) {
+                result = [success: false, error: "Meross login response did not contain a token/key. Enable debug logging on this app and check Live Logs for the raw response."]
                 return
             }
-            result = [success: true, token: data.token.toString(), key: data.key.toString()]
+            result = [success: true, token: token, key: key]
         }
     } catch (Exception e) {
         result = [success: false, error: "Error contacting Meross: ${e}"]
@@ -200,17 +207,21 @@ private Map fetchDeviceList(String token, String apiBase) {
             headers: ['Authorization': "Basic ${token}"],
             body   : [params: emptyParams, sign: signature, timestamp: sign.timestamp, nonce: sign.nonce]
         ]) { resp ->
-            logDebug("Meross devList raw response class=${resp.data?.getClass()} value=${resp.data}")
+            logDebug("Meross devList raw response: ${resp.data}")
             if (resp.status != 200) {
                 result = [success: false, error: "HTTP error ${resp.status} fetching device list."]
                 return
             }
             def parsed = asMap(resp.data)
-            if (parsed?.apiStatus != 0) {
-                result = [success: false, error: "Meross device lookup failed (apiStatus=${parsed?.apiStatus}): ${parsed?.info ?: 'no details returned'}. If apiStatus is blank, enable debug logging on this app and check Live Logs for the raw response."]
+            if (parsed.containsKey('apiStatus') && parsed.apiStatus != 0) {
+                result = [success: false, error: "Meross device lookup failed (apiStatus=${parsed.apiStatus}): ${parsed.info ?: 'no details returned'}"]
                 return
             }
-            result = [success: true, devices: (parsed.data instanceof List ? parsed.data : [])]
+            if (!(parsed.data instanceof List)) {
+                result = [success: false, error: "Meross device list response was not in the expected shape. Enable debug logging on this app and check Live Logs for the raw response."]
+                return
+            }
+            result = [success: true, devices: parsed.data]
         }
     } catch (Exception e) {
         result = [success: false, error: "Error contacting Meross: ${e}"]
@@ -237,7 +248,7 @@ private Map asMap(raw) {
         parsed = parsed.find { it instanceof Map } ?: [:]
     }
 
-    if (parsed instanceof Map && !parsed.containsKey('apiStatus') && parsed.size() == 1) {
+    if (parsed instanceof Map && !parsed.containsKey('data') && parsed.size() == 1) {
         def onlyKey = parsed.keySet().iterator().next()
         if (onlyKey instanceof Map) {
             parsed = onlyKey
@@ -254,6 +265,15 @@ private Map asMap(raw) {
     }
 
     return (parsed instanceof Map) ? parsed : [:]
+}
+
+// Last-resort fallback if Map access above still comes up empty - pull the
+// field straight out of the raw response text with a regex.
+private String extractFieldFromRaw(raw, String fieldName) {
+    def text = raw?.toString() ?: ''
+    def pattern = java.util.regex.Pattern.compile('"' + fieldName + '"\\s*:\\s*"([^"\\\\]*(?:\\\\.[^"\\\\]*)*)"')
+    def matcher = pattern.matcher(text)
+    return matcher.find() ? matcher.group(1) : ''
 }
 
 private Map buildSign() {
