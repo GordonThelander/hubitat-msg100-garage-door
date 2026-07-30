@@ -1,7 +1,7 @@
 /*
  * MSG100 Garage Door Setup
  * Namespace: Hubitat Integrations
- * Version: 1.3.2
+ * Version: 1.3.3
  *
  * Logs into a Meross account once, finds MSG100 garage door openers on
  * that account (and only MSG100s - anything else Meross returns is
@@ -143,7 +143,6 @@ def addDeviceStep3() {
                 input('startScan', 'button', title: 'Start Scan')
                 if (waitingOnScan) {
                     input('stopScan', 'button', title: 'Stop Scan')
-                    input('refreshStatus', 'button', title: 'Refresh Status')
                 }
                 paragraph(scanStatusMessage())
             }
@@ -397,10 +396,6 @@ void appButtonHandler(String buttonName) {
             break
         case 'stopScan':
             resetScan()
-            break
-        case 'refreshStatus':
-            // No action needed - clicking any button re-renders the page,
-            // which is enough to show current scan status.
             break
         default:
             log.warn("Unknown button: ${buttonName}")
