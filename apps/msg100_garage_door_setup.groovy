@@ -123,7 +123,7 @@ def addDeviceStep3() {
             def child = addChildDevice('Hubitat Integrations', 'MSG100 Garage Door', dni, [label: device?.devName ?: 'MSG100 Garage Door'])
             child.updateSetting('deviceIp', deviceIp)
             child.updateSetting('uuid', selectedDevice)
-            child.updateSetting('key', state.merossKey)
+            child.updateSetting('key', [value: state.merossKey, type: 'password'])
             child.updateSetting('pollFrequencySeconds', [value: '300', type: 'enum'])
             child.updateSetting('openVerifyDelaySeconds', [value: 5, type: 'number'])
             child.updateSetting('closeVerifyDelaySeconds', [value: 20, type: 'number'])
