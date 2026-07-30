@@ -1,7 +1,7 @@
 /*
  * MSG100 Garage Door Setup
  * Namespace: Hubitat Integrations
- * Version: 1.4.2
+ * Version: 1.5.0
  *
  * Logs into a Meross account once, finds MSG100 garage door openers on
  * that account (and only MSG100s - anything else Meross returns is
@@ -110,7 +110,9 @@ def addDeviceStep2() {
         app.updateSetting('selectedDevice', [value: onlyUuid, type: 'enum'])
         return dynamicPage(name: 'addDeviceStep2', title: 'Add a Garage Door (2 of 4): Device Found', nextPage: 'addDeviceStep3') {
             section {
-                paragraph("Found 1 MSG100 device on your account: '${options[onlyUuid]}'. Click Next to continue.")
+                paragraph("Found 1 MSG100 device on your cloud account: '${options[onlyUuid]}'.")
+                input('childDeviceLabel', 'text', title: 'Name for this device in Hubitat', required: true,
+                      defaultValue: options[onlyUuid])
             }
         }
     }
@@ -128,9 +130,15 @@ def addDeviceStep3() {
 
     return dynamicPage(name: 'addDeviceStep3', title: 'Add a Garage Door (3 of 4): Find It on Your Network',
                         nextPage: 'addDeviceStep4', refreshInterval: waitingOnScan ? 3 : 0) {
-        section('Name') {
-            input('childDeviceLabel', 'text', title: 'Name for this device in Hubitat', required: true,
-                  defaultValue: defaultChildDeviceLabel())
+        // Single-device accounts already named it on step 2, right next to
+        // the "found" confirmation. Only ask again here when that didn't
+        // happen (multiple devices on the account, so step 2 was a select
+        // list instead of a confirmation with nowhere natural to put this).
+        if (!childDeviceLabel) {
+            section('Name') {
+                input('childDeviceLabel', 'text', title: 'Name for this device in Hubitat', required: true,
+                      defaultValue: defaultChildDeviceLabel())
+            }
         }
 
         section {
