@@ -1,7 +1,7 @@
 /*
  * MSG100 Garage Door Setup
  * Namespace: Hubitat Integrations
- * Version: 1.3.4
+ * Version: 1.4.0
  *
  * Logs into a Meross account once, finds MSG100 garage door openers on
  * that account (and only MSG100s - anything else Meross returns is
@@ -128,6 +128,11 @@ def addDeviceStep3() {
 
     return dynamicPage(name: 'addDeviceStep3', title: 'Add a Garage Door (3 of 4): Find It on Your Network',
                         nextPage: 'addDeviceStep4', refreshInterval: waitingOnScan ? 3 : 0) {
+        section('Name') {
+            input('childDeviceLabel', 'text', title: 'Name for this device in Hubitat', required: true,
+                  defaultValue: defaultChildDeviceLabel())
+        }
+
         section {
             input('scanForIp', 'bool', title: "Scan my network for this device's IP address (off = enter it manually)",
                   submitOnChange: true, defaultValue: false)
@@ -163,15 +168,20 @@ def addDeviceStep4() {
         }
     }
 
-    def device = state.data?.find { it.uuid == selectedDevice }
     def dni = "msg100:${selectedDevice}"
+    // childDeviceLabel's defaultValue is only ever shown in the UI, not a
+    // real setting, until this page has been submitted at least once - it
+    // always has been by the time this step runs (it's on the initial
+    // render of step 3, not revealed later by a submitOnChange toggle),
+    // but fall back the same way regardless.
+    String label = (childDeviceLabel?.toString()?.trim()) ?: defaultChildDeviceLabel()
     def message
 
     if (getChildDevice(dni)) {
-        message = "A device for '${device?.devName ?: selectedDevice}' already exists."
+        message = "A device for '${label}' already exists."
     } else {
         try {
-            def child = addChildDevice('Hubitat Integrations', 'MSG100 Garage Door', dni, [label: device?.devName ?: 'MSG100 Garage Door'])
+            def child = addChildDevice('Hubitat Integrations', 'MSG100 Garage Door', dni, [label: label])
             child.updateSetting('deviceIp', resolvedIp)
             child.updateSetting('uuid', selectedDevice)
             child.updateSetting('key', [value: state.merossKey, type: 'password'])
@@ -179,13 +189,14 @@ def addDeviceStep4() {
             child.updateSetting('openVerifyDelaySeconds', [value: 5, type: 'number'])
             child.updateSetting('closeVerifyDelaySeconds', [value: 20, type: 'number'])
             child.initialize()
-            message = "Added '${device?.devName ?: 'MSG100 Garage Door'}' successfully using IP ${resolvedIp}."
+            message = "Added '${label}' successfully using IP ${resolvedIp}."
         } catch (Exception e) {
             message = "Failed to add device: ${e}"
         }
     }
 
     app.removeSetting('selectedDevice')
+    app.removeSetting('childDeviceLabel')
     app.removeSetting('scanForIp')
     app.removeSetting('manualDeviceIp')
     app.removeSetting('scanSubnetPrefix')
@@ -592,6 +603,11 @@ private Map parseJsonMap(String body) {
     } catch (Exception ignored) {
         return null
     }
+}
+
+private String defaultChildDeviceLabel() {
+    def device = state.data?.find { it.uuid == selectedDevice }
+    return device?.devName ?: 'MSG100 Garage Door'
 }
 
 private String defaultSubnetPrefix() {
