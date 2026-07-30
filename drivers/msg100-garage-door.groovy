@@ -249,7 +249,7 @@ private Map buildSign() {
     def random = new Random()
     String randomString = (1..16).collect { chars[random.nextInt(chars.size())] }.join()
 
-    long currentTime = (System.currentTimeMillis() / 1000L) as long
+    long currentTime = (now() / 1000L) as long
     String messageId = md5Hex(randomString + currentTime.toString())
     String sign = md5Hex(messageId + key + currentTime.toString())
 

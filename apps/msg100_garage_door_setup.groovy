@@ -235,7 +235,7 @@ private Map buildSign() {
     def chars = ('A'..'Z') + ('0'..'9')
     def random = new Random()
     String nonce = (1..16).collect { chars[random.nextInt(chars.size())] }.join()
-    long timestamp = (System.currentTimeMillis() / 1000L) as long
+    long timestamp = (now() / 1000L) as long
     return [nonce: nonce, timestamp: timestamp]
 }
 
