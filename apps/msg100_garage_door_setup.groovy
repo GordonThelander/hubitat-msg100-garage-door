@@ -1,12 +1,13 @@
 /*
  * MSG100 Garage Door Setup
  * Namespace: Hubitat Integrations
- * Version: 1.1.0
+ * Version: 1.2.0
  *
  * Logs into a Meross account once, finds MSG100 garage door openers on
  * that account (and only MSG100s - anything else Meross returns is
- * filtered out before it ever reaches the UI), and creates a preconfigured
- * "MSG100 Garage Door" child device for the one you pick.
+ * filtered out before it ever reaches the UI), locates the device's LAN
+ * IP address (by scanning the local subnet or manual entry), and creates
+ * a preconfigured "MSG100 Garage Door" child device for the one you pick.
  */
 
 import groovy.json.JsonOutput
@@ -31,6 +32,7 @@ preferences {
     page(name: 'addDeviceStep1')
     page(name: 'addDeviceStep2')
     page(name: 'addDeviceStep3')
+    page(name: 'addDeviceStep4')
     page(name: 'listDevicesPage')
 }
 
@@ -55,14 +57,12 @@ def listDevicesPage() {
 }
 
 def addDeviceStep1() {
-    return dynamicPage(name: 'addDeviceStep1', title: 'Add a Garage Door (1 of 3): Account', nextPage: 'addDeviceStep2') {
+    return dynamicPage(name: 'addDeviceStep1', title: 'Add a Garage Door (1 of 4): Account', nextPage: 'addDeviceStep2') {
         section {
             input('merossEmail', 'string', title: 'Meross account email', required: true)
             input('merossPassword', 'password', title: 'Meross account password', required: true)
             input('merossApiBase', 'string', title: 'Meross API base URL', required: true, defaultValue: 'https://iotx-ap.meross.com',
                   description: 'Region-specific. If login fails, try https://iotx-us.meross.com or https://iotx-eu.meross.com.')
-            input('deviceIp', 'text', title: 'Garage door opener LAN IP address', required: true,
-                  description: "Meross's cloud device list does not include this - find it in your router or the Meross app's WiFi settings.")
         }
     }
 }
@@ -103,7 +103,7 @@ def addDeviceStep2() {
     }
 
     def options = msg100Devices.collectEntries { [(it.uuid): (it.devName ?: it.uuid)] }
-    return dynamicPage(name: 'addDeviceStep2', title: 'Add a Garage Door (2 of 3): Select Device', nextPage: 'addDeviceStep3') {
+    return dynamicPage(name: 'addDeviceStep2', title: 'Add a Garage Door (2 of 4): Select Device', nextPage: 'addDeviceStep3') {
         section {
             input('selectedDevice', 'enum', title: "Select the garage door to add (${options.size()} MSG100 device(s) found)",
                   required: true, multiple: false, options: options, defaultValue: (options.size() == 1 ? options.keySet().first() : null))
@@ -112,6 +112,50 @@ def addDeviceStep2() {
 }
 
 def addDeviceStep3() {
+    boolean scanning = state.scanActive == true
+
+    return dynamicPage(name: 'addDeviceStep3', title: 'Add a Garage Door (3 of 4): Find It on Your Network',
+                        nextPage: 'addDeviceStep4', refreshInterval: scanning ? 5 : 0) {
+        section {
+            input('ipDiscoveryMode', 'enum', title: "How do you want to find this device's IP address?",
+                  required: true, submitOnChange: true, defaultValue: 'manual',
+                  options: [manual: 'Enter it manually', scan: 'Scan my network for it'])
+        }
+
+        if (ipDiscoveryMode == 'scan') {
+            section('Scan') {
+                input('scanSubnetPrefix', 'text', title: 'IPv4 subnet prefix (first three octets)', required: true,
+                      defaultValue: defaultSubnetPrefix())
+                input('scanStartHost', 'number', title: 'First host address', required: true, defaultValue: 1, range: '1..254')
+                input('scanEndHost', 'number', title: 'Last host address', required: true, defaultValue: 254, range: '1..254')
+                input('scanRequestDelayMs', 'number', title: 'Delay between probes (ms)', required: true, defaultValue: 500, range: '250..5000')
+                input('scanRequestTimeoutSeconds', 'number', title: 'Probe timeout (seconds)', required: true, defaultValue: 2, range: '1..10')
+                input('startScan', 'button', title: 'Start Scan')
+                if (scanning) {
+                    input('stopScan', 'button', title: 'Stop Scan')
+                }
+                paragraph(scanStatusMessage())
+            }
+        } else {
+            section('Manual entry') {
+                input('manualDeviceIp', 'text', title: 'Garage door opener LAN IP address', required: true,
+                      description: "Meross's cloud device list does not include this - find it in your router or the Meross app's WiFi settings.")
+            }
+        }
+    }
+}
+
+def addDeviceStep4() {
+    String resolvedIp = (ipDiscoveryMode == 'scan') ? state.discoveredIp : manualDeviceIp
+
+    if (!resolvedIp) {
+        return dynamicPage(name: 'addDeviceStep4', title: 'IP Address Needed', nextPage: 'addDeviceStep3') {
+            section {
+                paragraph('No IP address is available yet - go back and either finish the scan or switch to manual entry.')
+            }
+        }
+    }
+
     def device = state.data?.find { it.uuid == selectedDevice }
     def dni = "msg100:${selectedDevice}"
     def message
@@ -121,24 +165,38 @@ def addDeviceStep3() {
     } else {
         try {
             def child = addChildDevice('Hubitat Integrations', 'MSG100 Garage Door', dni, [label: device?.devName ?: 'MSG100 Garage Door'])
-            child.updateSetting('deviceIp', deviceIp)
+            child.updateSetting('deviceIp', resolvedIp)
             child.updateSetting('uuid', selectedDevice)
             child.updateSetting('key', [value: state.merossKey, type: 'password'])
             child.updateSetting('pollFrequencySeconds', [value: '300', type: 'enum'])
             child.updateSetting('openVerifyDelaySeconds', [value: 5, type: 'number'])
             child.updateSetting('closeVerifyDelaySeconds', [value: 20, type: 'number'])
             child.initialize()
-            message = "Added '${device?.devName ?: 'MSG100 Garage Door'}' successfully."
+            message = "Added '${device?.devName ?: 'MSG100 Garage Door'}' successfully using IP ${resolvedIp}."
         } catch (Exception e) {
             message = "Failed to add device: ${e}"
         }
     }
 
     app.removeSetting('selectedDevice')
+    app.removeSetting('ipDiscoveryMode')
+    app.removeSetting('manualDeviceIp')
+    app.removeSetting('scanSubnetPrefix')
+    app.removeSetting('scanStartHost')
+    app.removeSetting('scanEndHost')
+    app.removeSetting('scanRequestDelayMs')
+    app.removeSetting('scanRequestTimeoutSeconds')
     state.remove('data')
     state.remove('merossKey')
+    state.remove('scanActive')
+    state.remove('scanNextHost')
+    state.remove('scanLastHost')
+    state.remove('scanPrefix')
+    state.remove('scanTargetUuid')
+    state.remove('discoveredIp')
+    state.remove('scanCompletedAt')
 
-    return dynamicPage(name: 'addDeviceStep3', title: 'Add a Garage Door (3 of 3): Result', nextPage: 'mainPage') {
+    return dynamicPage(name: 'addDeviceStep4', title: 'Add a Garage Door (4 of 4): Result', nextPage: 'mainPage') {
         section {
             paragraph(message)
         }
@@ -154,6 +212,10 @@ def uninstalled() {
         }
     }
 }
+
+/*
+ * Cloud login / device list
+ */
 
 private Map loginMeross(String email, String password, String apiBase) {
     def sign = buildSign()
@@ -297,5 +359,283 @@ private String urlEncode(String value) {
 private void logDebug(String msg) {
     if (debugLogging) {
         log.debug(msg)
+    }
+}
+
+/*
+ * LAN subnet scan for the device's IP address.
+ *
+ * Sends a deliberately-unsigned Appliance.System.All request to each
+ * candidate host's /config endpoint. A genuine Meross device answers even
+ * an invalid signature with a structured "5001 sign error" response (or,
+ * occasionally, a real GETACK) that reveals its UUID via header.from -
+ * this is enough to identify the specific device already selected from
+ * the Meross account's device list without needing the key yet. Requests
+ * are dispatched one at a time with a configurable delay rather than all
+ * at once, to avoid straining the hub.
+ */
+
+void appButtonHandler(String buttonName) {
+    switch (buttonName) {
+        case 'startScan':
+            beginTargetedScan()
+            break
+        case 'stopScan':
+            stopTargetedScan()
+            break
+        default:
+            log.warn("Unknown button: ${buttonName}")
+            break
+    }
+}
+
+private void beginTargetedScan() {
+    unschedule('scanNextAddress')
+
+    String prefix = scanSubnetPrefix?.toString()?.trim()
+    Integer first = safeInteger(scanStartHost) ?: 1
+    Integer last = safeInteger(scanEndHost) ?: 254
+
+    if (!isValidSubnetPrefix(prefix) || first < 1 || last > 254 || first > last) {
+        log.warn("Invalid scan range: ${prefix}.${first}-${last}")
+        return
+    }
+
+    state.scanActive = true
+    state.scanNextHost = first
+    state.scanLastHost = last
+    state.scanPrefix = prefix
+    state.scanTargetUuid = selectedDevice
+    state.discoveredIp = null
+    state.scanCompletedAt = null
+
+    log.info("Scanning ${prefix}.${first}-${last} for MSG100 uuid ${selectedDevice}")
+    runInMillis(100, 'scanNextAddress', [overwrite: true])
+}
+
+private void stopTargetedScan() {
+    unschedule('scanNextAddress')
+    state.scanActive = false
+    state.scanCompletedAt = now()
+}
+
+void scanNextAddress() {
+    if (state.scanActive != true) {
+        return
+    }
+
+    Integer host = state.scanNextHost as Integer
+    Integer last = state.scanLastHost as Integer
+
+    if (host > last) {
+        state.scanActive = false
+        state.scanCompletedAt = now()
+        return
+    }
+
+    String ip = "${state.scanPrefix}.${host}"
+    state.scanNextHost = host + 1
+
+    sendScanProbe(ip)
+
+    Integer delay = safeInteger(scanRequestDelayMs) ?: 500
+    runInMillis(delay, 'scanNextAddress', [overwrite: true])
+}
+
+private void sendScanProbe(String ip) {
+    Integer timeoutSeconds = safeInteger(scanRequestTimeoutSeconds) ?: 2
+    Map requestBody = buildUnsignedSystemAllRequest()
+
+    Map params = [
+        uri               : "http://${ip}:80/config",
+        timeout           : timeoutSeconds,
+        contentType       : 'application/json',
+        requestContentType: 'application/json',
+        headers           : ['Connection': 'close'],
+        body              : requestBody
+    ]
+
+    try {
+        asynchttpPost('scanResponseHandler', params, [ip: ip])
+    } catch (Exception e) {
+        logDebug("Unable to dispatch scan probe to ${ip}: ${e}")
+    }
+}
+
+void scanResponseHandler(response, Map data) {
+    if (state.scanActive != true) {
+        return
+    }
+
+    String ip = data?.ip
+    Integer status = null
+    try {
+        status = response.getStatus()
+    } catch (Exception ignored) {
+        // Leave status null - treated as no usable response below.
+    }
+    if (status != 200) {
+        return
+    }
+
+    String body
+    try {
+        body = response.getData()?.toString()
+    } catch (Exception ignored) {
+        return
+    }
+    if (!body) {
+        return
+    }
+
+    Map json = parseJsonMap(body)
+    if (!json) {
+        return
+    }
+
+    Map classification = classifyMerossResponse(json)
+    if (classification.isMeross != true) {
+        return
+    }
+    if (classification.uuid != state.scanTargetUuid) {
+        logDebug("${ip} is a Meross endpoint but uuid ${classification.uuid} does not match target ${state.scanTargetUuid}")
+        return
+    }
+
+    state.discoveredIp = ip
+    state.scanActive = false
+    state.scanCompletedAt = now()
+    unschedule('scanNextAddress')
+    log.info("Found the target MSG100 (uuid ${classification.uuid}) at ${ip}")
+}
+
+private String scanStatusMessage() {
+    if (state.discoveredIp) {
+        return "Found the device at ${state.discoveredIp}. Click Next to continue."
+    }
+    if (state.scanActive == true) {
+        Integer first = safeInteger(scanStartHost) ?: 1
+        Integer last = safeInteger(scanEndHost) ?: 254
+        Integer next = (state.scanNextHost ?: first) as Integer
+        Integer total = Math.max(0, last - first + 1)
+        Integer dispatched = Math.max(0, Math.min(total, next - first))
+        return "Searching for uuid ${state.scanTargetUuid} - dispatched ${dispatched} of ${total} addresses..."
+    }
+    if (state.scanCompletedAt) {
+        return 'Scan finished without finding the device. Try again, widen the range, or switch to manual entry.'
+    }
+    return 'Click Start Scan to search your network for this device.'
+}
+
+private Map buildUnsignedSystemAllRequest() {
+    String messageId = UUID.randomUUID().toString().replace('-', '').toLowerCase()
+    long timestamp = now().intdiv(1000)
+
+    // Blank/missing key is intentional - a cloud-paired Meross device
+    // should still answer with a "5001 sign error", which is the
+    // discovery fingerprint we're looking for.
+    String signature = md5Hex("${messageId}${timestamp}")
+
+    return [
+        header : [
+            messageId     : messageId,
+            namespace     : 'Appliance.System.All',
+            method        : 'GET',
+            payloadVersion: 1,
+            from          : "/app/${messageId}/subscribe",
+            timestamp     : timestamp,
+            timestampMs   : 0,
+            sign          : signature
+        ],
+        payload: [:]
+    ]
+}
+
+private Map classifyMerossResponse(Map json) {
+    Map header = (json.header instanceof Map) ? json.header as Map : [:]
+    Map payload = (json.payload instanceof Map) ? json.payload as Map : [:]
+    Map error = (payload.error instanceof Map) ? payload.error as Map : [:]
+
+    String namespace = header.namespace?.toString()
+    String method = header.method?.toString()
+    String from = header.from?.toString()
+    Integer errorCode = safeInteger(error.code)
+
+    boolean signatureFingerprint = method == 'ERROR' && namespace == 'Appliance.System.All' &&
+                                    errorCode == 5001 && from?.startsWith('/appliance/')
+
+    Map all = (payload.all instanceof Map) ? payload.all as Map : [:]
+    Map system = (all.system instanceof Map) ? all.system as Map : [:]
+    Map hardware = (system.hardware instanceof Map) ? system.hardware as Map : [:]
+
+    boolean validSystemAll = namespace == 'Appliance.System.All' && method == 'GETACK' && !hardware.isEmpty()
+
+    if (!signatureFingerprint && !validSystemAll) {
+        return [isMeross: false]
+    }
+
+    String uuid = hardware.uuid?.toString() ?: extractUuidFromHeader(from)
+    return [isMeross: true, uuid: uuid]
+}
+
+// Finds the UUID by locating the "appliance" path segment and reading the
+// next one, rather than assuming a fixed token index - header.from's shape
+// is /appliance/<uuid>/publish, but Groovy's tokenize() drops the leading
+// empty token from the leading slash, so a fixed index is off by one.
+private String extractUuidFromHeader(String from) {
+    if (!from) {
+        return null
+    }
+    List<String> parts = from.tokenize('/')
+    Integer idx = parts.indexOf('appliance')
+    if (idx >= 0 && parts.size() > idx + 1) {
+        return parts[idx + 1]
+    }
+    return null
+}
+
+private Map parseJsonMap(String body) {
+    try {
+        Object parsed = new JsonSlurper().parseText(body)
+        return (parsed instanceof Map) ? parsed as Map : null
+    } catch (Exception ignored) {
+        return null
+    }
+}
+
+private String defaultSubnetPrefix() {
+    try {
+        String ip = location?.hub?.localIP?.toString()
+        if (ip) {
+            List<String> parts = ip.tokenize('.')
+            if (parts.size() == 4) {
+                return parts[0..2].join('.')
+            }
+        }
+    } catch (Exception ignored) {
+        // Fall through to the generic default below.
+    }
+    return '10.0.0'
+}
+
+private Boolean isValidSubnetPrefix(String prefix) {
+    if (!prefix) {
+        return false
+    }
+    List<String> parts = prefix.tokenize('.')
+    if (parts.size() != 3) {
+        return false
+    }
+    return parts.every { String part -> part ==~ /\d{1,3}/ && part.toInteger() >= 0 && part.toInteger() <= 255 }
+}
+
+private Integer safeInteger(Object value) {
+    if (value == null) {
+        return null
+    }
+    try {
+        return value.toString().toInteger()
+    } catch (Exception ignored) {
+        return null
     }
 }

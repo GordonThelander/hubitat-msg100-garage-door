@@ -1,10 +1,10 @@
 {
   "packageName": "MSG100 Garage Door",
   "author": "Gordon Thelander",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "minimumHEVersion": "1.0.0",
   "dateReleased": "2026-07-30",
-  "releaseNotes": "Confirmed working against a live MSG100 (firmware 3.2.7). Driver now uses asynchttpPost instead of HubAction/parse() for LAN requests, fixing status refresh not updating.",
+  "releaseNotes": "Setup app can now find the device's LAN IP by scanning the local subnet (looking for a Meross 5001 sign-error fingerprint matching the selected device's UUID), as an alternative to typing it in manually.",
   "apps": [
     {
       "id": "462372bd-8ea6-4632-9217-f19305c4ae87",
@@ -14,7 +14,7 @@
       "required": true,
       "oauth": false,
       "primary": true,
-      "version": "1.1.0"
+      "version": "1.2.0"
     }
   ],
   "drivers": [

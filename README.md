@@ -18,9 +18,12 @@ This package talks to the MSG100 directly over the LAN using Meross's own local 
 ## Setup
 
 1. **Add a Garage Door** in the app.
-2. Enter your Meross account email and password, the API base URL for your account's region (defaults to `https://iotx-ap.meross.com`; try `https://iotx-us.meross.com` or `https://iotx-eu.meross.com` if login fails), and your MSG100's LAN IP address. The LAN IP isn't part of Meross's cloud device list, so you'll need to find it yourself (router DHCP client list, or the Meross app's WiFi details for the device).
+2. Enter your Meross account email and password, and the API base URL for your account's region (defaults to `https://iotx-ap.meross.com`; try `https://iotx-us.meross.com` or `https://iotx-eu.meross.com` if login fails).
 3. Pick the MSG100 to add from the list Meross returns for your account.
-4. The app creates a child device, preconfigured with the device's IP, UUID, and account key.
+4. Find the device's LAN IP address - Meross's cloud device list doesn't include it, so you have two options:
+   - **Scan my network for it** - probes your local subnet for a device that answers with the selected MSG100's UUID. This works without a valid key: even an intentionally-wrong signature gets a structured "sign error" response from a genuine Meross device, which is enough to identify it. Requests are sent one at a time with a short delay between them rather than all at once.
+   - **Enter it manually** - type in the IP yourself (router DHCP client list, or the Meross app's WiFi details for the device).
+5. The app creates a child device, preconfigured with the device's IP, UUID, and account key.
 
 Your Meross password is only used for that one login call and is discarded from the app's settings immediately after - it's never stored.
 
