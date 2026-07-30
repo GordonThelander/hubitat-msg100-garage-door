@@ -117,12 +117,11 @@ def addDeviceStep3() {
     return dynamicPage(name: 'addDeviceStep3', title: 'Add a Garage Door (3 of 4): Find It on Your Network',
                         nextPage: 'addDeviceStep4', refreshInterval: scanning ? 5 : 0) {
         section {
-            input('ipDiscoveryMode', 'enum', title: "How do you want to find this device's IP address?",
-                  required: true, submitOnChange: true, defaultValue: 'manual',
-                  options: [manual: 'Enter it manually', scan: 'Scan my network for it'])
+            input('scanForIp', 'bool', title: "Scan my network for this device's IP address (off = enter it manually)",
+                  submitOnChange: true, defaultValue: false)
         }
 
-        if (ipDiscoveryMode == 'scan') {
+        if (scanForIp) {
             section('Scan') {
                 input('scanSubnetPrefix', 'text', title: 'IPv4 subnet prefix (first three octets)', required: true,
                       defaultValue: defaultSubnetPrefix())
@@ -146,7 +145,7 @@ def addDeviceStep3() {
 }
 
 def addDeviceStep4() {
-    String resolvedIp = (ipDiscoveryMode == 'scan') ? state.discoveredIp : manualDeviceIp
+    String resolvedIp = scanForIp ? state.discoveredIp : manualDeviceIp
 
     if (!resolvedIp) {
         return dynamicPage(name: 'addDeviceStep4', title: 'IP Address Needed', nextPage: 'addDeviceStep3') {
@@ -179,7 +178,7 @@ def addDeviceStep4() {
     }
 
     app.removeSetting('selectedDevice')
-    app.removeSetting('ipDiscoveryMode')
+    app.removeSetting('scanForIp')
     app.removeSetting('manualDeviceIp')
     app.removeSetting('scanSubnetPrefix')
     app.removeSetting('scanStartHost')
