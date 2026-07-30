@@ -1,0 +1,30 @@
+{
+  "packageName": "MSG100 Garage Door",
+  "author": "Gordon Thelander",
+  "version": "1.0.0",
+  "minimumHEVersion": "1.0.0",
+  "dateReleased": "2026-07-30",
+  "releaseNotes": "Initial release. Meross MSG100 WiFi garage door opener only.",
+  "apps": [
+    {
+      "id": "462372bd-8ea6-4632-9217-f19305c4ae87",
+      "name": "MSG100 Garage Door Setup",
+      "namespace": "Hubitat Integrations",
+      "location": "https://raw.githubusercontent.com/GordonThelander/hubitat-msg100-garage-door/main/apps/msg100_garage_door_setup.groovy",
+      "required": true,
+      "oauth": false,
+      "primary": true,
+      "version": "1.0.0"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "ab07aede-6146-4f97-afd7-355b0f352bf1",
+      "name": "MSG100 Garage Door",
+      "namespace": "Hubitat Integrations",
+      "location": "https://raw.githubusercontent.com/GordonThelander/hubitat-msg100-garage-door/main/drivers/msg100-garage-door.groovy",
+      "required": true,
+      "version": "1.0.0"
+    }
+  ]
+}
