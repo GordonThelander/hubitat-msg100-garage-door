@@ -1,7 +1,7 @@
 /*
  * MSG100 Garage Door Setup
  * Namespace: Hubitat Integrations
- * Version: 1.3.1
+ * Version: 1.3.2
  *
  * Logs into a Meross account once, finds MSG100 garage door openers on
  * that account (and only MSG100s - anything else Meross returns is
@@ -515,13 +515,22 @@ private String scanStatusMessage() {
         return "Found the device at ${state.discoveredIp}. Click Next to continue."
     }
     if (state.scanDispatchedAt) {
-        Integer timeoutSeconds = safeInteger(scanRequestTimeoutSeconds) ?: 2
+        Integer probeCount = (state.scanProbeCount ?: 0) as Integer
         long elapsedMs = now() - (state.scanDispatchedAt as long)
-        long graceMs = (timeoutSeconds * 1000L) + 3000L
-        if (elapsedMs < graceMs) {
-            return "Dispatched ${state.scanProbeCount ?: 0} probes - waiting for responses. Click Refresh Status in a few seconds."
+        long elapsedSeconds = elapsedMs / 1000L
+
+        // All probes are dispatched to Hubitat's async HTTP layer at once,
+        // but Hubitat still has to work through that whole batch
+        // internally - a short elapsed time is not reliable proof nothing
+        // will be found, so this deliberately doesn't claim "finished"
+        // with confidence it doesn't have. scanResponseHandler() has no
+        // time cutoff of its own, so a match can still be picked up by
+        // clicking Refresh Status again even after this point.
+        long stillLikelyMs = Math.max(15000L, probeCount * 200L)
+        if (elapsedMs < stillLikelyMs) {
+            return "Dispatched ${probeCount} probes ${elapsedSeconds}s ago - still waiting for responses. Click Refresh Status again in a few seconds."
         }
-        return 'Scan finished without finding the device. Try again, widen the range, or switch to manual entry.'
+        return "No matching response after ${elapsedSeconds}s. A response can still arrive late - click Refresh Status again, or Start Scan once more, narrow the address range, or switch to manual entry."
     }
     return 'Click Start Scan to search your network for this device.'
 }

@@ -1,10 +1,10 @@
 {
   "packageName": "MSG100 Garage Door",
   "author": "Gordon Thelander",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "minimumHEVersion": "1.0.0",
   "dateReleased": "2026-07-30",
-  "releaseNotes": "Fixed needing to click Start Scan twice: the subnet prefix field's default value wasn't actually a persisted setting on the very first click (only shown in the UI), so validation failed silently on the first attempt. Now falls back to the same default in code.",
+  "releaseNotes": "Fixed the scan status message asserting 'finished, not found' before Hubitat had actually finished processing the dispatched batch, which could show as false negatives that a bare retry would then contradict. The message now only claims what it can actually support and never declares a hard finish.",
   "apps": [
     {
       "id": "462372bd-8ea6-4632-9217-f19305c4ae87",
@@ -14,7 +14,7 @@
       "required": true,
       "oauth": false,
       "primary": true,
-      "version": "1.3.1"
+      "version": "1.3.2"
     }
   ],
   "drivers": [
