@@ -1,7 +1,7 @@
 /*
  * MSG100 Garage Door Setup
  * Namespace: Hubitat Integrations
- * Version: 1.5.0
+ * Version: 1.5.1
  *
  * Logs into a Meross account once, finds MSG100 garage door openers on
  * that account (and only MSG100s - anything else Meross returns is
@@ -111,7 +111,7 @@ def addDeviceStep2() {
         return dynamicPage(name: 'addDeviceStep2', title: 'Add a Garage Door (2 of 4): Device Found', nextPage: 'addDeviceStep3') {
             section {
                 paragraph("Found 1 MSG100 device on your cloud account: '${options[onlyUuid]}'.")
-                input('childDeviceLabel', 'text', title: 'Name for this device in Hubitat', required: true,
+                input('childDeviceLabel', 'text', title: '<span style="color:blue">Name for this device in Hubitat</span>', required: false,
                       defaultValue: options[onlyUuid])
             }
         }
@@ -136,7 +136,7 @@ def addDeviceStep3() {
         // list instead of a confirmation with nowhere natural to put this).
         if (!childDeviceLabel) {
             section('Name') {
-                input('childDeviceLabel', 'text', title: 'Name for this device in Hubitat', required: true,
+                input('childDeviceLabel', 'text', title: '<span style="color:blue">Name for this device in Hubitat</span>', required: false,
                       defaultValue: defaultChildDeviceLabel())
             }
         }
