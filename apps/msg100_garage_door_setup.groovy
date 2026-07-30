@@ -1,7 +1,7 @@
 /*
  * MSG100 Garage Door Setup
  * Namespace: Hubitat Integrations
- * Version: 1.3.3
+ * Version: 1.3.4
  *
  * Logs into a Meross account once, finds MSG100 garage door openers on
  * that account (and only MSG100s - anything else Meross returns is
@@ -141,9 +141,6 @@ def addDeviceStep3() {
                 input('scanEndHost', 'number', title: 'Last host address', required: true, defaultValue: 254, range: '1..254')
                 input('scanRequestTimeoutSeconds', 'number', title: 'Probe timeout (seconds)', required: true, defaultValue: 2, range: '1..10')
                 input('startScan', 'button', title: 'Start Scan')
-                if (waitingOnScan) {
-                    input('stopScan', 'button', title: 'Stop Scan')
-                }
                 paragraph(scanStatusMessage())
             }
         } else {
@@ -394,9 +391,6 @@ void appButtonHandler(String buttonName) {
         case 'startScan':
             beginTargetedScan()
             break
-        case 'stopScan':
-            resetScan()
-            break
         default:
             log.warn("Unknown button: ${buttonName}")
             break
@@ -432,12 +426,6 @@ private void beginTargetedScan() {
     }
 
     log.info("Dispatched ${state.scanProbeCount} scan probes")
-}
-
-private void resetScan() {
-    state.discoveredIp = null
-    state.scanDispatchedAt = null
-    state.scanProbeCount = 0
 }
 
 private void sendScanProbe(String ip) {
