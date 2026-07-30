@@ -1,7 +1,7 @@
 /*
  * MSG100 Garage Door Setup
  * Namespace: Hubitat Integrations
- * Version: 1.4.0
+ * Version: 1.4.1
  *
  * Logs into a Meross account once, finds MSG100 garage door openers on
  * that account (and only MSG100s - anything else Meross returns is
@@ -177,8 +177,19 @@ def addDeviceStep4() {
     String label = (childDeviceLabel?.toString()?.trim()) ?: defaultChildDeviceLabel()
     def message
 
-    if (getChildDevice(dni)) {
-        message = "A device for '${label}' already exists."
+    def existingChild = getChildDevice(dni)
+    if (existingChild) {
+        // Re-running the wizard for a device that already exists most
+        // likely means the user wants to change its name or IP - apply
+        // both rather than silently ignoring whatever was just entered.
+        try {
+            existingChild.setLabel(label)
+            existingChild.updateSetting('deviceIp', resolvedIp)
+            existingChild.initialize()
+            message = "'${label}' already existed - updated its name and IP address."
+        } catch (Exception e) {
+            message = "Device already existed, but updating it failed: ${e}"
+        }
     } else {
         try {
             def child = addChildDevice('Hubitat Integrations', 'MSG100 Garage Door', dni, [label: label])
@@ -518,13 +529,14 @@ private String scanStatusMessage() {
         // internally - a short elapsed time is not reliable proof nothing
         // will be found, so this deliberately doesn't claim "finished"
         // with confidence it doesn't have. scanResponseHandler() has no
-        // time cutoff of its own, so a match can still be picked up by
-        // clicking Refresh Status again even after this point.
+        // time cutoff of its own, so a match can still be picked up later -
+        // this page auto-refreshes every 3 seconds while waiting, so no
+        // button click is needed to see it.
         long stillLikelyMs = Math.max(15000L, probeCount * 200L)
         if (elapsedMs < stillLikelyMs) {
-            return "Dispatched ${probeCount} probes ${elapsedSeconds}s ago - still waiting for responses. Click Refresh Status again in a few seconds."
+            return "Dispatched ${probeCount} probes ${elapsedSeconds}s ago - still waiting for responses."
         }
-        return "No matching response after ${elapsedSeconds}s. A response can still arrive late - click Refresh Status again, or Start Scan once more, narrow the address range, or switch to manual entry."
+        return "No matching response after ${elapsedSeconds}s. A response can still arrive late - wait a bit longer, click Start Scan again, narrow the address range, or switch to manual entry."
     }
     return 'Click Start Scan to search your network for this device.'
 }

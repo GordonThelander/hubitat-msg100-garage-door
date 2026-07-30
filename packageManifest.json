@@ -1,10 +1,10 @@
 {
   "packageName": "MSG100 Garage Door",
   "author": "Gordon Thelander",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "minimumHEVersion": "1.0.0",
   "dateReleased": "2026-07-30",
-  "releaseNotes": "Added a device name field to the wizard - previously the child device's label was always taken from Meross's cloud name with no way to rename it during setup.",
+  "releaseNotes": "Fixed two leftovers: the scan status text still told users to click a Refresh Status button removed in 1.3.3, and re-running the wizard for an already-added device silently ignored any new name/IP entered instead of applying it.",
   "apps": [
     {
       "id": "462372bd-8ea6-4632-9217-f19305c4ae87",
@@ -14,7 +14,7 @@
       "required": true,
       "oauth": false,
       "primary": true,
-      "version": "1.4.0"
+      "version": "1.4.1"
     }
   ],
   "drivers": [
