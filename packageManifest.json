@@ -1,10 +1,10 @@
 {
   "packageName": "MSG100 Garage Door",
   "author": "Gordon Thelander",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "minimumHEVersion": "1.0.0",
   "dateReleased": "2026-07-30",
-  "releaseNotes": "Fixed the scan/manual choice on the IP-discovery step: it was an enum requiring a separate Update click, which left the page rendering the manual field's validation even after selecting scan. Now a bool toggle that applies immediately.",
+  "releaseNotes": "UI polish: explains why Meross login is required on step 1, and skips the pointless single-option device dropdown on step 2 when only one MSG100 is found.",
   "apps": [
     {
       "id": "462372bd-8ea6-4632-9217-f19305c4ae87",
@@ -14,7 +14,7 @@
       "required": true,
       "oauth": false,
       "primary": true,
-      "version": "1.2.1"
+      "version": "1.2.2"
     }
   ],
   "drivers": [

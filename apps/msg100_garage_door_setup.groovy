@@ -1,7 +1,7 @@
 /*
  * MSG100 Garage Door Setup
  * Namespace: Hubitat Integrations
- * Version: 1.2.1
+ * Version: 1.2.2
  *
  * Logs into a Meross account once, finds MSG100 garage door openers on
  * that account (and only MSG100s - anything else Meross returns is
@@ -59,6 +59,7 @@ def listDevicesPage() {
 def addDeviceStep1() {
     return dynamicPage(name: 'addDeviceStep1', title: 'Add a Garage Door (1 of 4): Account', nextPage: 'addDeviceStep2') {
         section {
+            paragraph('<span style="color:red">A one-time login to your Meross account is required here to retrieve the local-control key for your device - Meross does not expose that key any other way. Your password is used only for this login and is discarded immediately after; it is never stored.</span>')
             input('merossEmail', 'string', title: 'Meross account email', required: true)
             input('merossPassword', 'password', title: 'Meross account password', required: true)
             input('merossApiBase', 'string', title: 'Meross API base URL', required: true, defaultValue: 'https://iotx-ap.meross.com',
@@ -103,10 +104,21 @@ def addDeviceStep2() {
     }
 
     def options = msg100Devices.collectEntries { [(it.uuid): (it.devName ?: it.uuid)] }
+
+    if (options.size() == 1) {
+        String onlyUuid = options.keySet().first()
+        app.updateSetting('selectedDevice', [value: onlyUuid, type: 'enum'])
+        return dynamicPage(name: 'addDeviceStep2', title: 'Add a Garage Door (2 of 4): Device Found', nextPage: 'addDeviceStep3') {
+            section {
+                paragraph("Found 1 MSG100 device on your account: '${options[onlyUuid]}'. Click Next to continue.")
+            }
+        }
+    }
+
     return dynamicPage(name: 'addDeviceStep2', title: 'Add a Garage Door (2 of 4): Select Device', nextPage: 'addDeviceStep3') {
         section {
             input('selectedDevice', 'enum', title: "Select the garage door to add (${options.size()} MSG100 device(s) found)",
-                  required: true, multiple: false, options: options, defaultValue: (options.size() == 1 ? options.keySet().first() : null))
+                  required: true, multiple: false, options: options)
         }
     }
 }
