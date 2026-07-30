@@ -1,7 +1,7 @@
 /*
  * MSG100 Garage Door Setup
  * Namespace: Hubitat Integrations
- * Version: 1.4.1
+ * Version: 1.4.2
  *
  * Logs into a Meross account once, finds MSG100 garage door openers on
  * that account (and only MSG100s - anything else Meross returns is
@@ -185,6 +185,7 @@ def addDeviceStep4() {
         try {
             existingChild.setLabel(label)
             existingChild.updateSetting('deviceIp', resolvedIp)
+            existingChild.updateSetting('key', [value: state.merossKey, type: 'password'])
             existingChild.initialize()
             message = "'${label}' already existed - updated its name and IP address."
         } catch (Exception e) {
