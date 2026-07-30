@@ -1,7 +1,7 @@
 /*
  * MSG100 Garage Door Setup
  * Namespace: Hubitat Integrations
- * Version: 1.2.3
+ * Version: 1.3.0
  *
  * Logs into a Meross account once, finds MSG100 garage door openers on
  * that account (and only MSG100s - anything else Meross returns is
@@ -124,10 +124,10 @@ def addDeviceStep2() {
 }
 
 def addDeviceStep3() {
-    boolean scanning = state.scanActive == true
+    boolean waitingOnScan = state.scanDispatchedAt != null && !state.discoveredIp
 
     return dynamicPage(name: 'addDeviceStep3', title: 'Add a Garage Door (3 of 4): Find It on Your Network',
-                        nextPage: 'addDeviceStep4', refreshInterval: scanning ? 5 : 0) {
+                        nextPage: 'addDeviceStep4', refreshInterval: waitingOnScan ? 3 : 0) {
         section {
             input('scanForIp', 'bool', title: "Scan my network for this device's IP address (off = enter it manually)",
                   submitOnChange: true, defaultValue: false)
@@ -139,10 +139,9 @@ def addDeviceStep3() {
                       defaultValue: defaultSubnetPrefix())
                 input('scanStartHost', 'number', title: 'First host address', required: true, defaultValue: 1, range: '1..254')
                 input('scanEndHost', 'number', title: 'Last host address', required: true, defaultValue: 254, range: '1..254')
-                input('scanRequestDelayMs', 'number', title: 'Delay between probes (ms)', required: true, defaultValue: 500, range: '250..5000')
                 input('scanRequestTimeoutSeconds', 'number', title: 'Probe timeout (seconds)', required: true, defaultValue: 2, range: '1..10')
                 input('startScan', 'button', title: 'Start Scan')
-                if (scanning) {
+                if (waitingOnScan) {
                     input('stopScan', 'button', title: 'Stop Scan')
                     input('refreshStatus', 'button', title: 'Refresh Status')
                 }
@@ -196,17 +195,13 @@ def addDeviceStep4() {
     app.removeSetting('scanSubnetPrefix')
     app.removeSetting('scanStartHost')
     app.removeSetting('scanEndHost')
-    app.removeSetting('scanRequestDelayMs')
     app.removeSetting('scanRequestTimeoutSeconds')
     state.remove('data')
     state.remove('merossKey')
-    state.remove('scanActive')
-    state.remove('scanNextHost')
-    state.remove('scanLastHost')
-    state.remove('scanPrefix')
     state.remove('scanTargetUuid')
     state.remove('discoveredIp')
-    state.remove('scanCompletedAt')
+    state.remove('scanDispatchedAt')
+    state.remove('scanProbeCount')
 
     return dynamicPage(name: 'addDeviceStep4', title: 'Add a Garage Door (4 of 4): Result', nextPage: 'mainPage') {
         section {
@@ -382,9 +377,17 @@ private void logDebug(String msg) {
  * an invalid signature with a structured "5001 sign error" response (or,
  * occasionally, a real GETACK) that reveals its UUID via header.from -
  * this is enough to identify the specific device already selected from
- * the Meross account's device list without needing the key yet. Requests
- * are dispatched one at a time with a configurable delay rather than all
- * at once, to avoid straining the hub.
+ * the Meross account's device list without needing the key yet.
+ *
+ * All probes are dispatched together rather than paced one at a time via
+ * a self-rescheduling runIn/runInMillis chain: that chain does not appear
+ * to reliably continue running when scheduled from this app's mid-wizard
+ * page context - the first scheduled call never fired on a live hub, with
+ * no error, just silence. asynchttpPost itself is fire-and-forget (this
+ * loop only enqueues the requests; it doesn't wait for responses), so
+ * dispatching all of them from a single button click is fast and doesn't
+ * depend on the scheduler at all - only on asynchttpPost callbacks, which
+ * are the same mechanism already proven reliable in the driver.
  */
 
 void appButtonHandler(String buttonName) {
@@ -393,11 +396,11 @@ void appButtonHandler(String buttonName) {
             beginTargetedScan()
             break
         case 'stopScan':
-            stopTargetedScan()
+            resetScan()
             break
         case 'refreshStatus':
             // No action needed - clicking any button re-renders the page,
-            // which is enough to show current scan progress.
+            // which is enough to show current scan status.
             break
         default:
             log.warn("Unknown button: ${buttonName}")
@@ -406,8 +409,6 @@ void appButtonHandler(String buttonName) {
 }
 
 private void beginTargetedScan() {
-    unschedule('scanNextAddress')
-
     String prefix = scanSubnetPrefix?.toString()?.trim()
     Integer first = safeInteger(scanStartHost) ?: 1
     Integer last = safeInteger(scanEndHost) ?: 254
@@ -417,45 +418,26 @@ private void beginTargetedScan() {
         return
     }
 
-    state.scanActive = true
-    state.scanNextHost = first
-    state.scanLastHost = last
-    state.scanPrefix = prefix
     state.scanTargetUuid = selectedDevice
     state.discoveredIp = null
-    state.scanCompletedAt = null
+    state.scanDispatchedAt = now()
+    state.scanProbeCount = 0
 
-    log.info("Scanning ${prefix}.${first}-${last} for MSG100 uuid ${selectedDevice}")
-    runInMillis(100, 'scanNextAddress', [overwrite: true])
-}
+    Integer count = last - first + 1
+    log.info("Scanning ${prefix}.${first}-${last} (${count} addresses) for MSG100 uuid ${selectedDevice}")
 
-private void stopTargetedScan() {
-    unschedule('scanNextAddress')
-    state.scanActive = false
-    state.scanCompletedAt = now()
-}
-
-void scanNextAddress() {
-    if (state.scanActive != true) {
-        return
+    for (int host = first; host <= last; host++) {
+        sendScanProbe("${prefix}.${host}")
+        state.scanProbeCount = (state.scanProbeCount as Integer) + 1
     }
 
-    Integer host = state.scanNextHost as Integer
-    Integer last = state.scanLastHost as Integer
+    log.info("Dispatched ${state.scanProbeCount} scan probes")
+}
 
-    if (host > last) {
-        state.scanActive = false
-        state.scanCompletedAt = now()
-        return
-    }
-
-    String ip = "${state.scanPrefix}.${host}"
-    state.scanNextHost = host + 1
-
-    sendScanProbe(ip)
-
-    Integer delay = safeInteger(scanRequestDelayMs) ?: 500
-    runInMillis(delay, 'scanNextAddress', [overwrite: true])
+private void resetScan() {
+    state.discoveredIp = null
+    state.scanDispatchedAt = null
+    state.scanProbeCount = 0
 }
 
 private void sendScanProbe(String ip) {
@@ -479,7 +461,8 @@ private void sendScanProbe(String ip) {
 }
 
 void scanResponseHandler(response, Map data) {
-    if (state.scanActive != true) {
+    if (state.discoveredIp) {
+        // Already found the target device from an earlier response.
         return
     }
 
@@ -519,9 +502,6 @@ void scanResponseHandler(response, Map data) {
     }
 
     state.discoveredIp = ip
-    state.scanActive = false
-    state.scanCompletedAt = now()
-    unschedule('scanNextAddress')
     log.info("Found the target MSG100 (uuid ${classification.uuid}) at ${ip}")
 }
 
@@ -529,15 +509,13 @@ private String scanStatusMessage() {
     if (state.discoveredIp) {
         return "Found the device at ${state.discoveredIp}. Click Next to continue."
     }
-    if (state.scanActive == true) {
-        Integer first = safeInteger(scanStartHost) ?: 1
-        Integer last = safeInteger(scanEndHost) ?: 254
-        Integer next = (state.scanNextHost ?: first) as Integer
-        Integer total = Math.max(0, last - first + 1)
-        Integer dispatched = Math.max(0, Math.min(total, next - first))
-        return "Searching for uuid ${state.scanTargetUuid} - dispatched ${dispatched} of ${total} addresses..."
-    }
-    if (state.scanCompletedAt) {
+    if (state.scanDispatchedAt) {
+        Integer timeoutSeconds = safeInteger(scanRequestTimeoutSeconds) ?: 2
+        long elapsedMs = now() - (state.scanDispatchedAt as long)
+        long graceMs = (timeoutSeconds * 1000L) + 3000L
+        if (elapsedMs < graceMs) {
+            return "Dispatched ${state.scanProbeCount ?: 0} probes - waiting for responses. Click Refresh Status in a few seconds."
+        }
         return 'Scan finished without finding the device. Try again, widen the range, or switch to manual entry.'
     }
     return 'Click Start Scan to search your network for this device.'
