@@ -1,8 +1,8 @@
 /*
- * MSG100 Garage Door
+ * Meross MSG100 Garage Door
  * Namespace: Hubitat Integrations
- * Version: 2.1.0
- * Parent app: MSG100 Garage Door Setup
+ * Version: 2.2.0
+ * Parent app: Meross MSG100 Garage Door Setup
  *
  * Controls a Meross MSG100 WiFi garage door opener directly over the LAN.
  * Single-channel device: channel 0 is the only door, so there is no
@@ -21,7 +21,7 @@ import groovy.json.JsonSlurper
 import java.security.MessageDigest
 
 metadata {
-    definition(name: 'MSG100 Garage Door', namespace: 'Hubitat Integrations', author: 'Gordon Thelander') {
+    definition(name: 'Meross MSG100 Garage Door', namespace: 'Hubitat Integrations', author: 'Gordon Thelander') {
         capability 'DoorControl'
         capability 'GarageDoorControl'
         capability 'Actuator'

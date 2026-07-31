@@ -1,4 +1,4 @@
-# Hubitat MSG100 Garage Door
+# Hubitat Meross MSG100 Garage Door
 
 Control a Meross MSG100 WiFi Garage Door Opener from Hubitat - open, close, and monitor its status entirely over your local network. Setup finds the device automatically (network scan or manual IP entry), and once it's configured, control never touches the cloud again.
 
@@ -13,7 +13,7 @@ Built specifically for the MSG100 - no other Meross device types are supported. 
 
 1. In the Hubitat admin UI, go to **Drivers Code > New Driver**, paste in `drivers/msg100-garage-door.groovy`, and save.
 2. Go to **Apps Code > New App**, paste in `apps/msg100_garage_door_setup.groovy`, and save.
-3. Go to **Apps > Add User App**, select **MSG100 Garage Door Setup**.
+3. Go to **Apps > Add User App**, select **Meross MSG100 Garage Door Setup**.
 
 ## Setup
 

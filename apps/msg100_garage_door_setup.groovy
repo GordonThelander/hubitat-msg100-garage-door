@@ -1,13 +1,14 @@
 /*
- * MSG100 Garage Door Setup
+ * Meross MSG100 Garage Door Setup
  * Namespace: Hubitat Integrations
- * Version: 2.1.0
+ * Version: 2.2.0
  *
  * Logs into a Meross account once, finds MSG100 garage door openers on
  * that account (and only MSG100s - anything else Meross returns is
  * filtered out before it ever reaches the UI), locates the device's LAN
  * IP address (by scanning the local subnet or manual entry), and creates
- * a preconfigured "MSG100 Garage Door" child device for the one you pick.
+ * a preconfigured "Meross MSG100 Garage Door" child device for the one
+ * you pick.
  */
 
 import groovy.json.JsonOutput
@@ -16,7 +17,7 @@ import java.net.URLEncoder
 import java.security.MessageDigest
 
 definition(
-    name: 'MSG100 Garage Door Setup',
+    name: 'Meross MSG100 Garage Door Setup',
     namespace: 'Hubitat Integrations',
     author: 'Gordon Thelander',
     description: 'Finds and adds Meross MSG100 garage door openers as Hubitat devices.',
@@ -37,7 +38,7 @@ preferences {
 }
 
 def mainPage() {
-    return dynamicPage(name: 'mainPage', title: 'MSG100 Garage Door Setup', install: true, uninstall: true) {
+    return dynamicPage(name: 'mainPage', title: 'Meross MSG100 Garage Door Setup', install: true, uninstall: true) {
         section {
             paragraph('Adds Meross MSG100 WiFi garage door openers as Hubitat devices.')
             href(name: 'toAdd', page: 'addDeviceStep1', title: '<b>Add a Garage Door</b>', description: 'Log into Meross and add an MSG100.')
@@ -196,7 +197,7 @@ def addDeviceStep4() {
         }
     } else {
         try {
-            def child = addChildDevice('Hubitat Integrations', 'MSG100 Garage Door', dni, [label: label])
+            def child = addChildDevice('Hubitat Integrations', 'Meross MSG100 Garage Door', dni, [label: label])
             child.updateSetting('deviceIp', resolvedIp)
             child.updateSetting('uuid', selectedDevice)
             child.updateSetting('key', [value: state.merossKey, type: 'password'])
@@ -619,7 +620,7 @@ private Map parseJsonMap(String body) {
 
 private String defaultChildDeviceLabel() {
     def device = state.data?.find { it.uuid == selectedDevice }
-    return device?.devName ?: 'MSG100 Garage Door'
+    return device?.devName ?: 'Meross MSG100 Garage Door'
 }
 
 private String defaultSubnetPrefix() {
