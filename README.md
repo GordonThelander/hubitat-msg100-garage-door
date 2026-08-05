@@ -37,3 +37,7 @@ Your Meross password is only used for that one login call and is discarded from 
 
 - MSG100 is a single-channel device, so there's no channel/port selector anywhere in this driver - channel `0` is the only door.
 - The driver signs every LAN request fresh using the account key obtained during setup; there's no static/legacy signing fallback to configure.
+
+## License
+
+Apache License 2.0 - see [LICENSE](LICENSE).
